@@ -19,3 +19,108 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+
+pragma solidity ^0.8.0;
+
+contract chatapp{
+    struct user{
+        string name;
+        friend[] friendlist;
+    }
+
+    struct friend{
+        address fd;
+        string name;
+    }
+
+    struct massage{
+        address sender;
+        uint timestamp;
+        string mass;
+    }
+
+    mapping(address=>user) userlist;
+    mapping(bytes32=>massage[]) allmassage;
+
+    function useraccount(address _add) public view returns(bool){
+        return bytes(userlist[_add].name).length>0;
+
+    }
+    //creat account
+    function creataccount(string calldata name) external {
+        require(useraccount(msg.sender)== false,"user already exists");
+        require(bytes(name).length>0,"user name can't be empty");
+        userlist[msg.sender].name=name;
+    }
+    //get username
+    function getusername(address _add) public view returns(string memory){
+        require(useraccount(_add),"user not registered");
+        return userlist[_add].name;
+    }
+    //add friend
+
+    function addfreiend(address _fdadd, string memory name) external {
+        require(useraccount(msg.sender),"You need to create account first");
+        require(useraccount(_fdadd),"user is not registerd");
+        require(msg.sender!= _fdadd," user can't add themself as a friend");
+        require(checkallreadyfriend(msg.sender,_fdadd)==false,"this user are already friend");
+        
+        _addfriend(msg.sender,_fdadd,name);
+        _addfriend(_fdadd,msg.sender,userlist[msg.sender].name);
+    }
+    //checkallreadyfriend
+
+    function checkallreadyfriend(address owner,address _fd) internal view returns(bool){
+        if (userlist[owner].friendlist.length>userlist[_fd].friendlist.length){
+            address tmp=owner;
+            owner=_fd;
+            _fd=tmp;
+        }
+
+        for (uint i=0;i<userlist[owner].friendlist.length;i++){
+            if (userlist[owner].friendlist[i].fd==_fd) return true;
+        }
+        return false;
+
+    }
+
+    function _addfriend(address _me,address _friend,string memory _name) internal{
+        friend memory newfriend=friend(_friend,_name);
+        userlist[_me].friendlist.push(newfriend);
+    }
+    //get my friends
+
+    function getmyfriends() external view returns(friend[] memory){
+        return userlist[msg.sender].friendlist;
+    }
+    //chat code
+    function _gatechatcode(address pubkey1,address pubkey2) internal pure returns(bytes32){
+        if (pubkey1>pubkey2){
+            return keccak256(abi.encodePacked(pubkey1,pubkey2));
+        }
+        else return keccak256(abi.encodePacked(pubkey2,pubkey1));
+
+    }
+
+    function sendmassage(address _reciever, string memory _massage) public{
+        require(useraccount(msg.sender),"creat account first");
+        require(useraccount(_reciever),"user is not registred");
+        require(checkallreadyfriend(msg.sender,_reciever),"you are not friend");
+        
+        bytes32 chatcode = _gatechatcode(msg.sender,_reciever);
+        massage memory newmassage=massage(msg.sender,block.timestamp,_massage);
+
+        allmassage[chatcode].push(newmassage);
+    }
+    // read massage
+
+    function readmassage(address pubkey0) external view returns(massage[] memory){
+        bytes32 chatcode= _gatechatcode(msg.sender, pubkey0);
+        return allmassage[chatcode];
+    }
+        
+}
+
+
+
